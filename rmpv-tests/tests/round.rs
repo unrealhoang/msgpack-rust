@@ -196,3 +196,13 @@ fn pass_ext_struct() {
 
     test_round(ExtStruct::One(5), Value::Ext(1, vec![5]));
 }
+
+#[test]
+fn pass_derive_serde_ext_struct() {
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    #[serde(rename = "_ExtStruct")]
+    struct ExtStruct((i8, serde_bytes::ByteBuf));
+
+    test_round(ExtStruct((2, serde_bytes::ByteBuf::from(vec![5]))),
+               Value::Ext(2, vec![5]));
+}
