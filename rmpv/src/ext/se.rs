@@ -187,8 +187,7 @@ impl ser::Serializer for Serializer {
     fn serialize_newtype_struct<T: ?Sized>(self, name: &'static str, value: &T) -> Result<Self::Ok, Self::Error>
         where T: Serialize
     {
-        value.serialize(ExtSerializer::new())
-        Ok(to_value(value)?)
+        to_value(value)
     }
 
     fn serialize_newtype_variant<T: ?Sized>(self, _name: &'static str, idx: u32, _variant: &'static str, value: &T) -> Result<Self::Ok, Self::Error>
@@ -274,13 +273,13 @@ impl ser::Serializer for &mut ExtSerializer {
     type Ok = ();
     type Error = Error;
 
-    type SerializeSeq = Self;
-    type SerializeTuple = Self;
-    type SerializeTupleStruct = Self;
-    type SerializeTupleVariant = Self;
-    type SerializeMap = Self;
-    type SerializeStruct = Self;
-    type SerializeStructVariant = Self;
+    type SerializeSeq = ser::Impossible<(), Error>;
+    type SerializeTuple = ser::Impossible<(), Error>;
+    type SerializeTupleStruct = ser::Impossible<(), Error>;
+    type SerializeTupleVariant = ser::Impossible<(), Error>;
+    type SerializeMap = ser::Impossible<(), Error>;
+    type SerializeStruct = ser::Impossible<(), Error>;
+    type SerializeStructVariant = ser::Impossible<(), Error>;
 
     #[inline]
     fn serialize_i8(self, value: i8) -> Result<Self::Ok, Self::Error> {
@@ -294,16 +293,12 @@ impl ser::Serializer for &mut ExtSerializer {
 
     #[inline]
     fn serialize_bytes(self, val: &[u8]) -> Result<Self::Ok, Self::Error> {
-        if self.tag.is_some() {
-            if self.binary.is_none() {
-                self.binary.replace(val.to_vec());
+        if self.binary.is_none() {
+            self.binary.replace(val.to_vec());
 
-                Ok(())
-            } else {
-                Err(<Error as ser::Error>::custom("expected i8 and bytes, received second bytes"))
-            }
+            Ok(())
         } else {
-            Err(<Error as ser::Error>::custom("expected i8 and bytes, received bytes first"))
+            Err(<Error as ser::Error>::custom("expected i8 and bytes, received second bytes"))
         }
     }
 
@@ -437,101 +432,6 @@ impl ser::Serializer for &mut ExtSerializer {
     }
 }
 
-impl SerializeSeq for &mut ExtSerializer {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error> {
-        unreachable!()
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        unreachable!()
-    }
-}
-
-impl SerializeTuple for &mut ExtSerializer {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error> {
-        unreachable!()
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        unreachable!()
-    }
-}
-
-impl SerializeTupleStruct for &mut ExtSerializer {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error> {
-        unreachable!()
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        unreachable!()
-    }
-}
-
-impl ser::SerializeTupleVariant for &mut ExtSerializer {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error> {
-        unreachable!()
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        unreachable!()
-    }
-}
-
-impl ser::SerializeMap for &mut ExtSerializer {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_key<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error> {
-        unreachable!()
-    }
-
-    fn serialize_value<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error> {
-        unreachable!()
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        unreachable!()
-    }
-}
-
-impl ser::SerializeStruct for &mut ExtSerializer {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_field<T: ?Sized>(&mut self, _key: &'static str, value: &T) -> Result<(), Self::Error> {
-        unreachable!()
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        unreachable!()
-    }
-}
-
-impl ser::SerializeStructVariant for &mut ExtSerializer {
-    type Ok = ();
-    type Error = Error;
-
-    fn serialize_field<T: ?Sized>(&mut self, _key: &'static str, value: &T) -> Result<(), Self::Error> {
-        unreachable!()
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-        unreachable!()
-    }
-}
-
 impl ExtSerializer {
     fn new() -> Self {
         Self {
@@ -543,7 +443,9 @@ impl ExtSerializer {
     fn value(self) -> Result<Value, Error> {
         match (self.tag, self.binary) {
             (Some(tag), Some(binary)) => Ok(Value::Ext(tag, binary)),
-            _ => Err(<Error as ser::Error>::custom("Not enough params for ext"))
+            (Some(_), None) => Err(<Error as ser::Error>::custom("expected i8 and bytes, received i8 only")),
+            (None, Some(_)) => Err(<Error as ser::Error>::custom("expected i8 and bytes, received bytes only")),
+            (None, None) => Err(<Error as ser::Error>::custom("expected i8 and bytes, received nothing")),
         }
     }
 }

@@ -253,7 +253,7 @@ impl<'de, R: ReadSlice<'de>> Deserializer<R> {
         where V: Visitor<'de>
     {
         let ext_de = ExtDeserializer::new(self, len);
-        visitor.visit_newtype_struct(ext_de)
+        visitor.visit_seq(ext_de)
     }
 
     fn read_array<V>(&mut self, len: u32, visitor: V) -> Result<V::Value, Error>
@@ -294,12 +294,6 @@ fn read_u32<R: Read>(rd: &mut R) -> Result<u32, Error> {
 struct ExtDeserializer<'a, R: 'a> {
     rd: &'a mut R,
     len: u32,
-}
-
-#[derive(Debug)]
-struct ExtSeqDeserializer<'a, R: 'a> {
-    rd: &'a mut R,
-    len: u32,
     read_tag: bool,
     read_binary: bool
 }
@@ -309,46 +303,13 @@ impl<'de, 'a, R: ReadSlice<'de> + 'a> ExtDeserializer<'a, R> {
         ExtDeserializer {
             rd: &mut d.rd,
             len,
-        }
-    }
-
-    fn into_seq_deserializer(self) -> ExtSeqDeserializer<'a, R> {
-        ExtSeqDeserializer {
-            rd: self.rd,
-            len: self.len,
             read_tag: false,
             read_binary: false
         }
     }
 }
 
-impl<'de, 'a, R: ReadSlice<'de> + 'a> de::Deserializer<'de> for ExtDeserializer<'a, R> {
-    type Error = Error;
-
-    #[inline]
-    fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
-        where V: Visitor<'de>
-    {
-        Err(de::Error::invalid_type(de::Unexpected::Other("non tuple struct"), &"Ext tuple struct"))
-    }
-
-    fn deserialize_tuple_struct<V>(self, _name: &'static str, _len: usize, visitor: V) -> Result<V::Value, Self::Error>
-        where V: Visitor<'de>
-    {
-        // FIXME: assert name and len
-        let ext_seq_de = self.into_seq_deserializer();
-        visitor.visit_seq(ext_seq_de)
-    }
-
-    forward_to_deserialize_any! {
-        bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string unit option
-        seq bytes byte_buf map unit_struct newtype_struct
-        struct identifier tuple enum ignored_any
-    }
-}
-
-
-impl<'de, 'a, R: ReadSlice<'de> + 'a> de::SeqAccess<'de> for ExtSeqDeserializer<'a, R> {
+impl<'de, 'a, R: ReadSlice<'de> + 'a> de::SeqAccess<'de> for ExtDeserializer<'a, R> {
     type Error = Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Error>
@@ -363,7 +324,8 @@ impl<'de, 'a, R: ReadSlice<'de> + 'a> de::SeqAccess<'de> for ExtSeqDeserializer<
     }
 }
 
-impl<'de, 'a, 'b, R: ReadSlice<'de> + 'a> de::Deserializer<'de> for &'b mut ExtSeqDeserializer<'a, R> {
+/// Deserializer for Ext SeqAccess
+impl<'de, 'a, 'b, R: ReadSlice<'de> + 'a> de::Deserializer<'de> for &'b mut ExtDeserializer<'a, R> {
     type Error = Error;
 
     #[inline]
